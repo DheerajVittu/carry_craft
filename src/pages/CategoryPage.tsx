@@ -64,9 +64,9 @@ export default function CategoryPage() {
 
             try {
                 const response = await fetch(
-                    `${API_URL}/categories/${encodeURIComponent(slug)}/products`,
-                    { signal: controller.signal }
-                )
+  `${API_URL}/categories/${encodeURIComponent(slug!)}/products`,
+  { signal: controller.signal }
+)
 
                 if (!response.ok) {
                     throw new Error(

@@ -1,9 +1,9 @@
 
-import { Fragment, useCallback, useEffect, useState } from 'react'
+import {useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AdminProductManager } from './uploader_deploader/AdminProductManager'
 import { logout } from '../lib/auth'
+import { AdminProductManager } from './uploader_deploader/AdminProductManager'
 
 const API_URL =
     import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
@@ -86,25 +86,25 @@ interface Summary {
     cart_items?: number
 }
 
-interface ApiError {
-    message?: string
-}
+// interface ApiError {
+//     message?: string
+// }
 
-const ORDER_STATUSES: OrderStatus[] = [
-    'pending',
-    'confirmed',
-    'processing',
-    'shipped',
-    'delivered',
-    'cancelled',
-]
+// const ORDER_STATUSES: OrderStatus[] = [
+//     'pending',
+//     'confirmed',
+//     'processing',
+//     'shipped',
+//     'delivered',
+//     'cancelled',
+// ]
 
-const PAYMENT_STATUSES: PaymentStatus[] = [
-    'pending',
-    'paid',
-    'failed',
-    'refunded',
-]
+// const PAYMENT_STATUSES: PaymentStatus[] = [
+//     'pending',
+//     'paid',
+//     'failed',
+//     'refunded',
+// ]
 
 function formatStatus(status?: string) {
     if (!status) return 'Unknown'
@@ -139,21 +139,21 @@ function getStatusClasses(status?: string) {
     }
 }
 
-function formatDate(value: string) {
-    if (!value) return '—'
+// function formatDate(value: string) {
+//     if (!value) return '—'
 
-    const date = new Date(value)
+//     const date = new Date(value)
 
-    if (Number.isNaN(date.getTime())) return value
+//     if (Number.isNaN(date.getTime())) return value
 
-    return new Intl.DateTimeFormat('de-DE', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-    }).format(date)
-}
+//     return new Intl.DateTimeFormat('de-DE', {
+//         day: '2-digit',
+//         month: 'short',
+//         year: 'numeric',
+//         hour: '2-digit',
+//         minute: '2-digit',
+//     }).format(date)
+// }
 
 export default function AdminDashboard() {
     const navigate = useNavigate()
@@ -172,7 +172,7 @@ export default function AdminDashboard() {
     const [searchTerm, setSearchTerm] = useState('')
     const [appliedSearch, setAppliedSearch] = useState('')
 
-    const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null)
+    // const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null)
     const [updatingOrderId, setUpdatingOrderId] = useState<number | null>(null)
 
     const token = localStorage.getItem('shop_token')

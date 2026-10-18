@@ -1,7 +1,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import type { Location } from 'react-router-dom'
+// import type { Location } from 'react-router-dom'
 
 const API_URL =
   import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
@@ -142,12 +142,13 @@ export default function PurchaseHistoryPage() {
     window.history.state?.usr ?? {}
   ) as NavigationState
 
-  const [successMessage, setSuccessMessage] = useState(
-    locationState.successMessage || '',
-  )
-  const [successOrderNumber, setSuccessOrderNumber] = useState(
-    locationState.orderNumber || '',
-  )
+  const [successMessage] = useState(
+  locationState.successMessage || '',
+)
+
+const [successOrderNumber] = useState(
+  locationState.orderNumber || '',
+)
 
   const loadOrders = useCallback(async () => {
     const token = localStorage.getItem('shop_token')

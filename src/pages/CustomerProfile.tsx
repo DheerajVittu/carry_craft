@@ -179,21 +179,21 @@ export default function CustomerProfile() {
   }
 
   // Keep a snapshot of the last address received from the server.
-  const [addressFromCustomer, setAddressFromCustomer] =
+  const [addressFromCustomer] =
     useState<CustomerAddress>(emptyAddress)
 
-  function saveAddressSnapshot(savedAddress: Partial<CustomerAddress> | null) {
-    setAddressFromCustomer({
-      address_line1: savedAddress?.address_line1 || '',
-      address_line2: savedAddress?.address_line2 || '',
-      city: savedAddress?.city || '',
-      state: savedAddress?.state || '',
-      postal_code: savedAddress?.postal_code || '',
-      country: savedAddress?.country || '',
-      id: savedAddress?.id,
-      is_default: savedAddress?.is_default,
-    })
-  }
+  // function saveAddressSnapshot(savedAddress: Partial<CustomerAddress> | null) {
+  //   setAddressFromCustomer({
+  //     address_line1: savedAddress?.address_line1 || '',
+  //     address_line2: savedAddress?.address_line2 || '',
+  //     city: savedAddress?.city || '',
+  //     state: savedAddress?.state || '',
+  //     postal_code: savedAddress?.postal_code || '',
+  //     country: savedAddress?.country || '',
+  //     id: savedAddress?.id,
+  //     is_default: savedAddress?.is_default,
+  //   })
+  // }
 
   function handleLogout() {
     logout()
@@ -202,21 +202,21 @@ export default function CustomerProfile() {
 
   // Load the address snapshot when the server returns the profile.
   // The helper below updates both the editable address and its snapshot.
-  function setLoadedAddress(savedAddress: Partial<CustomerAddress> | null) {
-    const normalized: CustomerAddress = {
-      address_line1: savedAddress?.address_line1 || '',
-      address_line2: savedAddress?.address_line2 || '',
-      city: savedAddress?.city || '',
-      state: savedAddress?.state || '',
-      postal_code: savedAddress?.postal_code || '',
-      country: savedAddress?.country || '',
-      id: savedAddress?.id,
-      is_default: savedAddress?.is_default,
-    }
+  // function setLoadedAddress(savedAddress: Partial<CustomerAddress> | null) {
+  //   const normalized: CustomerAddress = {
+  //     address_line1: savedAddress?.address_line1 || '',
+  //     address_line2: savedAddress?.address_line2 || '',
+  //     city: savedAddress?.city || '',
+  //     state: savedAddress?.state || '',
+  //     postal_code: savedAddress?.postal_code || '',
+  //     country: savedAddress?.country || '',
+  //     id: savedAddress?.id,
+  //     is_default: savedAddress?.is_default,
+  //   }
 
-    setAddress(normalized)
-    setAddressFromCustomer(normalized)
-  }
+  //   setAddress(normalized)
+  //   setAddressFromCustomer(normalized)
+  // }
 
   if (loading) {
     return (

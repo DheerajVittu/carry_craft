@@ -1,5 +1,5 @@
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 const API_URL =
@@ -36,13 +36,13 @@ type ProfileResponse = {
   address?: Partial<Address> | null
 }
 
-type OrderResponse = {
-  message?: string
-  order?: {
-    id?: number
-    order_number?: string
-  }
-}
+// type OrderResponse = {
+//   message?: string
+//   order?: {
+//     id?: number
+//     order_number?: string
+//   }
+// }
 
 const emptyAddress: Address = {
   full_name: '',
@@ -108,7 +108,7 @@ export default function CheckoutPage() {
   const [hasSavedAddress, setHasSavedAddress] = useState(false)
   const [editingAddress, setEditingAddress] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [placingOrder, setPlacingOrder] = useState(false)
+  const [placingOrder] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
@@ -213,24 +213,24 @@ export default function CheckoutPage() {
     }))
   }
 
-  function validateAddress() {
-    const requiredFields: Array<keyof Address> = [
-      'full_name',
-      'phone_number',
-      'address_line1',
-      'city',
-      'postal_code',
-      'country',
-    ]
+  // function validateAddress() {
+  //   const requiredFields: Array<keyof Address> = [
+  //     'full_name',
+  //     'phone_number',
+  //     'address_line1',
+  //     'city',
+  //     'postal_code',
+  //     'country',
+  //   ]
 
-    for (const field of requiredFields) {
-      if (!address[field].trim()) {
-        return 'Please complete all required delivery address fields.'
-      }
-    }
+  //   for (const field of requiredFields) {
+  //     if (!address[field].trim()) {
+  //       return 'Please complete all required delivery address fields.'
+  //     }
+  //   }
 
-    return ''
-  }
+  //   return ''
+  // }
 
   
 async function handlePlaceOrder() {
@@ -507,9 +507,12 @@ async function handlePlaceOrder() {
                 </>
               ) : (
                 <form
-                  onSubmit={(event) => void handlePlaceOrder(event)}
-                  className="mt-5 space-y-4"
-                >
+  onSubmit={(event) => {
+    event.preventDefault()
+    void handlePlaceOrder()
+  }}
+  className="mt-5 space-y-4"
+>
                   {!hasSavedAddress && (
                     <p className="text-sm leading-6 text-stone-500">
                       Please enter your delivery details to continue.
