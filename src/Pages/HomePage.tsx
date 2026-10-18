@@ -459,91 +459,82 @@ const featuredProducts = useMemo(() => {
       </div>
 
       {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-stone-200/80 bg-white/95 backdrop-blur-md">
-        <div className="mx-auto flex h-[68px] max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:h-20 lg:px-8">
-          <Link
-            to="/"
-            className="shrink-0 font-serif text-[25px] font-bold tracking-tight sm:text-3xl"
-          >
-            CarryCraft<span className="text-green-800">.</span>
-          </Link>
+      
+<header className="sticky top-0 z-30 border-b border-stone-200 bg-white/95 backdrop-blur">
+  <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-2 px-3 sm:h-16 sm:gap-4 sm:px-6 lg:h-20">
+    <Link
+      to="/"
+      className="shrink-0 font-serif text-xl font-bold tracking-tight sm:text-2xl"
+    >
+      CarryCraft<span className="text-green-700">.</span>
+    </Link>
 
-          <nav className="hidden items-center gap-7 md:flex lg:gap-9">
-            {navLinks.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className="text-xs font-medium text-stone-700 transition hover:text-green-800 lg:text-sm"
-              >
-                {item.label}
-              </a>
-            ))}
-          </nav>
+    <nav className="hidden items-center gap-7 md:flex">
+      {navLinks.map((item) => (
+        <a
+          key={item.href}
+          href={item.href}
+          className="text-sm font-medium text-stone-700 transition hover:text-green-700"
+        >
+          {item.label}
+        </a>
+      ))}
+    </nav>
 
-          <div className="flex items-center gap-1 sm:gap-3">
-            <button
-              type="button"
-              onClick={goToAccount}
-              className="px-2 py-2 text-xs font-semibold transition hover:text-green-800 sm:px-3 sm:text-sm"
-            >
-              Account
-            </button>
+    <div className="flex shrink-0 items-center gap-1 sm:gap-3">
+      <button
+        type="button"
+        onClick={goToAccount}
+        className="rounded-lg px-2 py-2 text-xs font-medium hover:bg-stone-100 hover:text-green-700 sm:px-3 sm:text-sm"
+      >
+        Account
+      </button>
 
-            <Link
-  to="/purchase-history"
-  className="text-sm font-medium text-gray-700 transition hover:text-black"
->
-  Purchase History
-</Link>
+      <Link
+        to={localStorage.getItem("shop_token") ? "/cart" : "/login"}
+        aria-label="Shopping cart"
+        title="Shopping cart"
+        className="flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-stone-100 hover:text-green-700 sm:h-10 sm:w-10"
+      >
+        <BagIcon />
+      </Link>
 
-            <button
-              type="button"
-              onClick={goToCart}
-              aria-label="Open shopping cart"
-              title="Shopping cart"
-              className="flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-stone-100 hover:text-green-800"
-            >
-              <BagIcon />
-            </button>
+      <button
+        type="button"
+        onClick={() => setMenuOpen((v) => !v)}
+        aria-expanded={menuOpen}
+        aria-label={menuOpen ? "Close menu" : "Open menu"}
+        className="flex h-9 w-9 items-center justify-center rounded-full text-xl hover:bg-stone-100 md:hidden"
+      >
+        {menuOpen ? "×" : "☰"}
+      </button>
+    </div>
+  </div>
 
-            <button
-              type="button"
-              onClick={() => setMenuOpen((value) => !value)}
-              aria-expanded={menuOpen}
-              aria-label={menuOpen ? "Close menu" : "Open menu"}
-              className="flex h-10 w-10 items-center justify-center rounded-full text-xl hover:bg-stone-100 md:hidden"
-            >
-              {menuOpen ? "×" : "☰"}
-            </button>
-          </div>
-        </div>
+  {menuOpen && (
+    <nav className="border-t border-stone-200 bg-white px-4 py-3 md:hidden">
+      {navLinks.map((item) => (
+        <a
+          key={item.href}
+          href={item.href}
+          onClick={() => setMenuOpen(false)}
+          className="block border-b border-stone-100 py-3 text-sm last:border-0"
+        >
+          {item.label}
+        </a>
+      ))}
 
-        {menuOpen && (
-          <nav className="border-t border-stone-200 bg-white px-5 py-3 md:hidden">
-            {navLinks.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                onClick={() => setMenuOpen(false)}
-                className="block border-b border-stone-100 py-4 text-sm last:border-0"
-              >
-                {item.label}
-              </a>
-            ))}
+      <Link
+        to="/purchase-history"
+        onClick={() => setMenuOpen(false)}
+        className="block py-3 text-sm"
+      >
+        Purchase history
+      </Link>
+    </nav>
+  )}
+</header>
 
-            <button
-              type="button"
-              onClick={() => {
-                setMenuOpen(false);
-                navigate("/purchase-history");
-              }}
-              className="block py-4 text-sm"
-            >
-              Purchase history
-            </button>
-          </nav>
-        )}
-      </header>
 
       {/* Hero: travel landscape instead of another bag photo */}
       <section className="relative isolate min-h-[560px] overflow-hidden bg-[#202720] text-white sm:min-h-[620px] lg:min-h-[690px]">
