@@ -16,11 +16,18 @@ interface Product {
   brand: string | null
   price: number | string
   stock_quantity: number
-  category_name?: number | string
+  category_id?: number
   category_display_name: string | null
   image_url: string | null
   is_active: boolean
   sku?: string | null
+
+  // Add these fields
+  description?: string | null
+  color?: string | null
+  material?: string | null
+  capacity_liters?: number | string | null
+  weight_kg?: number | string | null
 }
 
 interface Category {
@@ -35,7 +42,7 @@ interface Props {
 
 interface ProductForm {
   name: string
-  category_name: string
+  category_id: string
   slug: string
   description: string
   brand: string
@@ -47,10 +54,9 @@ interface ProductForm {
   capacity_liters: string
   weight_kg: string
 }
-
 const emptyForm: ProductForm = {
   name: '',
-  category_name: '',
+  category_id: '',
   slug: '',
   description: '',
   brand: '',
@@ -223,27 +229,42 @@ export function AdminProductManager({
     setShowForm(true)
   }
 
-  function startEdit(product: Product) {
-    setError('')
-    setMessage('')
+  
+function startEdit(product: Product) {
+  setError('')
+  setMessage('')
 
-    setEditingId(product.id)
+  setEditingId(product.id)
 
-    setForm({
-      ...emptyForm,
-      name: product.name || '',
-      brand: product.brand || '',
-      price: String(product.price ?? ''),
-      stock_quantity: String(product.stock_quantity ?? 0),
-      category_name: String(product.category_name ?? ''),
-      sku: product.sku || '',
-      slug: generateSlug(product.name || ''),
-    })
+  setForm({
+    ...emptyForm,
+    name: product.name || '',
+    brand: product.brand || '',
+    price: String(product.price ?? ''),
+    stock_quantity: String(product.stock_quantity ?? 0),
+    category_id: String(product.category_id ?? ''),
+    sku: product.sku || '',
+    slug: generateSlug(product.name || ''),
 
-    setImage(null)
-    setPreview(getImageUrl(product.image_url))
-    setShowForm(true)
-  }
+    // Populate the additional fields when editing
+    description: product.description ?? '',
+    color: product.color ?? '',
+    material: product.material ?? '',
+    capacity_liters:
+      product.capacity_liters == null
+        ? ''
+        : String(product.capacity_liters),
+    weight_kg:
+      product.weight_kg == null
+        ? ''
+        : String(product.weight_kg),
+  })
+
+  setImage(null)
+  setPreview(getImageUrl(product.image_url))
+  setShowForm(true)
+}
+
 
   async function saveProduct(
     event: FormEvent<HTMLFormElement>,
@@ -259,9 +280,13 @@ export function AdminProductManager({
         throw new Error('Please enter a product name.')
       }
 
-      if (!form.category_name) {
-        throw new Error('Please select a category.')
-      }
+      if (
+  !form.category_id ||
+  !Number.isInteger(Number(form.category_id)) ||
+  Number(form.category_id) < 1
+) {
+  throw new Error('Please select a valid category.')
+}
 
       if (!editingId && !image) {
         throw new Error('Please select a product image.')
@@ -287,16 +312,23 @@ export function AdminProductManager({
 
       const body = new FormData()
 
-      Object.entries(form).forEach(([key, value]) => {
-        body.append(key, value)
-      })
+// Send the category ID first, before the image file.
+body.append('category_id', String(form.category_id))
 
-      // Always derive the slug from the product name.
-      body.set('slug', generateSlug(form.name))
+// Append all remaining fields without duplicating category_id.
+Object.entries(form).forEach(([key, value]) => {
+  if (key !== 'category_id') {
+    body.append(
+      key,
+      key === 'slug' ? generateSlug(form.name) : value
+    )
+  }
+})
 
-      if (image) {
-        body.append('image', image)
-      }
+// Append the image last.
+if (image) {
+  body.append('image', image)
+}
 
       const endpoint = editingId
         ? `/admin/products/${editingId}`
@@ -358,6 +390,38 @@ export function AdminProductManager({
       console.error('Deactivate product error:', err);
     }
   }
+
+  
+async function activateProduct(id: number) {
+  const confirmed = window.confirm(
+    'Are you sure you want to activate this bag?'
+  )
+
+  if (!confirmed) return
+
+  setError('')
+  setMessage('')
+
+  try {
+    await request(`/admin/products/${id}/activate`, {
+      method: 'PATCH',
+    })
+
+    setMessage(`Product ${id} activated successfully.`)
+
+    // Refresh the dashboard and product list.
+    onChanged()
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error
+        ? err.message
+        : 'Could not activate product.'
+
+    setError(errorMessage)
+    console.error('Activate product error:', err)
+  }
+}
+
 
 
 
@@ -468,31 +532,28 @@ export function AdminProductManager({
                 </label>
 
                 <select
-                  id="product-category"
-                  name="category_name"
-                  value={form.category_name}
-                  onChange={updateField}
-                  required
-                  disabled={categoriesLoading || categories.length === 0}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100"
-                >
-                  <option value="">
-                    {categoriesLoading
-                      ? 'Loading categories...'
-                      : categories.length === 0
-                        ? 'No categories available'
-                        : 'Select a category'}
-                  </option>
+  id="product-category"
+  name="category_id"
+  value={form.category_id}
+  onChange={updateField}
+  required
+  disabled={categoriesLoading || categories.length === 0}
+  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-100"
+>
+  <option value="">
+    {categoriesLoading
+      ? 'Loading categories...'
+      : categories.length === 0
+        ? 'No categories available'
+        : 'Select a category'}
+  </option>
 
-                  {categories.map((category) => (
-                    <option
-                      key={category.id}
-                      value={category.id}
-                    >
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
+  {categories.map((category) => (
+    <option key={category.id} value={category.id}>
+      {category.name}
+    </option>
+  ))}
+</select>
               </div>
 
               {/* Brand */}
@@ -871,15 +932,25 @@ export function AdminProductManager({
                           Edit
                         </button>
 
-                        {product.is_active && (
-                          <button
-                            type="button"
-                            onClick={() => void deactivateProduct(product.id)}
-                            className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50"
-                          >
-                            Deactivate
-                          </button>
-                        )}
+                        
+{product.is_active ? (
+  <button
+    type="button"
+    onClick={() => void deactivateProduct(product.id)}
+    className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50"
+  >
+    Deactivate
+  </button>
+) : (
+  <button
+    type="button"
+    onClick={() => void activateProduct(product.id)}
+    className="rounded-lg border border-green-200 px-3 py-2 text-xs font-semibold text-green-700 transition hover:bg-green-50"
+  >
+    Activate
+  </button>
+)}
+
                       </div>
                     </td>
                   </tr>

@@ -29,7 +29,7 @@ const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp']
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const categoryId = Number(req.body.category_name)
+        const categoryId = Number(req.body.category_id)
 
         if (
             !Number.isInteger(categoryId) ||
@@ -49,7 +49,7 @@ const storage = multer.diskStorage({
     },
 
     filename: (req, file, cb) => {
-        const categoryId = Number(req.body.category_name)
+        const categoryId = Number(req.body.category_id)
         const categoryDir = path.join(bagsDir, String(categoryId))
         const extension = path.extname(file.originalname).toLowerCase()
 
@@ -109,7 +109,7 @@ function handleUpload(req, res, next) {
 
 // Validate the product fields received from React.
 function validateProduct(body) {
-    const categoryId = Number(body.category_name)
+    const categoryId = Number(body.category_id)
     const price = Number(body.price)
     const stock = Number(body.stock_quantity)
 
@@ -164,12 +164,12 @@ function validateProduct(body) {
 router.get('/summary', async (req, res) => {
     try {
         const result = await pool.query(`
-SELECT
-(SELECT COUNT(*) FROM products) AS products,
-    (SELECT COUNT(*) FROM customers) AS customers,
-    (SELECT COUNT(*) FROM carts) AS carts,
-    (SELECT COUNT(*) FROM cart_items) AS cart_items
-    `)
+            SELECT
+                (SELECT COUNT(*) FROM products) AS products,
+                (SELECT COUNT(*) FROM customers) AS customers,
+                (SELECT COUNT(*) FROM carts) AS carts,
+                (SELECT COUNT(*) FROM cart_items) AS cart_items
+        `)
 
         res.json(result.rows[0])
     } catch (error) {
@@ -203,12 +203,12 @@ p.id,
     p.capacity_liters,
     p.weight_kg,
     p.image_url,
-    p.category_name,
+    p.category_id,
     p.is_active,
     c.name AS category_display_name
 FROM products p
 LEFT JOIN categories c
-ON c.id = p.category_name
+ON c.id = p.category_id
 ORDER BY p.id DESC
     `)
 
@@ -239,7 +239,7 @@ router.post('/products', handleUpload, async (req, res) => {
     }
 
     const {
-        category_name,
+        category_id,
         name,
         slug,
         description,
@@ -256,14 +256,14 @@ router.post('/products', handleUpload, async (req, res) => {
 
     // The browser can access the image through the Express /assets route.
     const imageUrl = req.file
-        ? `/assets/bags/${Number(category_name)}/${req.file.filename}`
+        ? `/assets/bags/${Number(category_id)}/${req.file.filename}`
 : null
 
 try {
     // Confirm the category exists.
     const categoryResult = await pool.query(
         'SELECT id FROM categories WHERE id = $1',
-        [Number(category_name)]
+        [Number(category_id)]
     )
 
     if (!categoryResult.rows.length) {
@@ -277,7 +277,7 @@ try {
     const result = await pool.query(
         `
             INSERT INTO products (
-                category_name,
+                category_id,
                 name,
                 slug,
                 description,
@@ -299,7 +299,7 @@ try {
             RETURNING *
             `,
         [
-            Number(category_name),
+            Number(category_id),
             name.trim(),
             slug.trim(),
             description || null,
@@ -376,7 +376,7 @@ router.put('/products/:id', handleUpload, async (req, res) => {
     }
 
     const {
-        category_name,
+        category_id,
         name,
         slug,
         description,
@@ -394,7 +394,7 @@ router.put('/products/:id', handleUpload, async (req, res) => {
     try {
         const categoryResult = await pool.query(
             'SELECT id FROM categories WHERE id = $1',
-            [Number(category_name)]
+            [Number(category_id)]
         )
 
         if (!categoryResult.rows.length) {
@@ -421,14 +421,14 @@ router.put('/products/:id', handleUpload, async (req, res) => {
         const oldImageUrl = oldResult.rows[0].image_url
 
         const imageUrl = req.file
-            ? `/assets/bags/${Number(category_name)}/${req.file.filename}`
+            ? `/assets/bags/${Number(category_id)}/${req.file.filename}`
             : oldImageUrl
 
         const result = await pool.query(
             `
             UPDATE products
             SET
-                category_name = $1,
+                category_id = $1,
                 name = $2,
                 slug = $3,
                 description = $4,
@@ -447,7 +447,7 @@ router.put('/products/:id', handleUpload, async (req, res) => {
             RETURNING *
             `,
             [
-                Number(category_name),
+                Number(category_id),
                 name.trim(),
                 slug.trim(),
                 description || null,
@@ -533,6 +533,48 @@ router.patch('/products/:id/deactivate', async (req, res) => {
 
         res.status(500).json({
             message: 'Could not deactivate product.',
+        });
+    }
+});
+
+
+/**
+ * PATCH /api/admin/products/:id/activate
+ * Reactivate a previously deactivated product.
+ */
+router.patch('/products/:id/activate', async (req, res) => {
+    const productId = Number(req.params.id);
+
+    if (!Number.isInteger(productId) || productId <= 0) {
+        return res.status(400).json({
+            message: 'Invalid product ID.',
+        });
+    }
+
+    try {
+        const result = await pool.query(
+            `UPDATE products
+             SET is_active = TRUE
+             WHERE id = $1
+             RETURNING id, is_active`,
+            [productId]
+        );
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({
+                message: 'Product not found.',
+            });
+        }
+
+        return res.json({
+            message: 'Product activated successfully.',
+            product: result.rows[0],
+        });
+    } catch (error) {
+        console.error('Activate product error:', error);
+
+        return res.status(500).json({
+            message: 'Could not activate product.',
         });
     }
 });
@@ -659,6 +701,77 @@ router.get('/customers/:customerId/cart', async (req, res) => {
 })
 
 // =====================================================
+// GET /api/admin/orders?search=
+// Get all customer orders, with optional search
+// =====================================================
+
+router.get('/orders', async (req, res) => {
+    const search = String(req.query.search || '').trim()
+
+    try {
+        const result = await pool.query(
+            `
+            SELECT
+                o.id,
+                o.order_number,
+                o.status,
+                o.payment_status,
+                o.subtotal,
+                o.shipping_fee,
+                o.total_amount,
+                o.created_at,
+                o.shipping_full_name,
+                o.shipping_phone,
+                o.shipping_address_line1,
+                o.shipping_address_line2,
+                o.shipping_city,
+                o.shipping_state,
+                o.shipping_postal_code,
+                o.shipping_country,
+                c.full_name AS customer_name,
+                c.email AS customer_email,
+                COUNT(oi.id)::int AS item_count,
+                COALESCE(
+                    JSON_AGG(
+                        JSON_BUILD_OBJECT(
+                            'id', oi.id,
+                            'product_id', oi.product_id,
+                            'product_name', oi.product_name,
+                            'product_sku', oi.product_sku,
+                            'image_url', oi.image_url,
+                            'quantity', oi.quantity,
+                            'unit_price', oi.unit_price,
+                            'line_total', oi.line_total
+                        )
+                        ORDER BY oi.id
+                    ) FILTER (WHERE oi.id IS NOT NULL),
+                    '[]'::json
+                ) AS items
+            FROM orders o
+            JOIN customers c ON c.id = o.customer_id
+            LEFT JOIN order_items oi ON oi.order_id = o.id
+            WHERE
+                $1 = ''
+                OR o.order_number ILIKE '%' || $1 || '%'
+                OR c.full_name ILIKE '%' || $1 || '%'
+                OR c.email ILIKE '%' || $1 || '%'
+            GROUP BY o.id, c.full_name, c.email
+            ORDER BY o.created_at DESC, o.id DESC
+            `,
+            [search]
+        )
+
+        res.json(result.rows)
+    } catch (error) {
+        console.error('Admin orders error:', error)
+
+        res.status(500).json({
+            message: 'Could not load customer orders.',
+        })
+    }
+})
+
+// =====================================================
 // Catch unexpected upload errors for routes using Multer.
 // =====================================================
 
@@ -673,5 +786,100 @@ router.use((error, req, res, next) => {
         message: error.message || 'Request failed.',
     })
 })
+
+
+/**
+ * PATCH /api/admin/orders/:id/status
+ * Update an order's status and/or payment status.
+ */
+router.patch('/orders/:id/status', async (req, res) => {
+    const { status, payment_status } = req.body
+
+    const allowedOrderStatuses = [
+        'pending',
+        'confirmed',
+        'processing',
+        'shipped',
+        'delivered',
+        'cancelled',
+    ]
+
+    const allowedPaymentStatuses = [
+        'pending',
+        'paid',
+        'failed',
+        'refunded',
+    ]
+
+    if (!/^\d+$/.test(req.params.id)) {
+        return res.status(400).json({
+            message: 'Invalid order ID.',
+        })
+    }
+
+    // Require at least one status to be updated.
+    if (status === undefined && payment_status === undefined) {
+        return res.status(400).json({
+            message: 'Provide an order status or payment status.',
+        })
+    }
+
+    // Validate supplied values before updating the database.
+    if (
+        status !== undefined &&
+        !allowedOrderStatuses.includes(status)
+    ) {
+        return res.status(400).json({
+            message: 'Invalid order status.',
+        })
+    }
+
+    if (
+        payment_status !== undefined &&
+        !allowedPaymentStatuses.includes(payment_status)
+    ) {
+        return res.status(400).json({
+            message: 'Invalid payment status.',
+        })
+    }
+
+    try {
+        const result = await pool.query(
+            `UPDATE orders
+             SET
+                 status = COALESCE($1, status),
+                 payment_status = COALESCE($2, payment_status)
+             WHERE id = $3
+             RETURNING
+                 id,
+                 order_number,
+                 status,
+                 payment_status`,
+            [
+                status === undefined ? null : status,
+                payment_status === undefined ? null : payment_status,
+                Number(req.params.id),
+            ]
+        )
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                message: 'Order not found.',
+            })
+        }
+
+        return res.json({
+            message: 'Order status updated successfully.',
+            order: result.rows[0],
+        })
+    } catch (error) {
+        console.error('Update order status error:', error.message)
+
+        return res.status(500).json({
+            message: 'Could not update order status.',
+        })
+    }
+})
+
 
 module.exports = router

@@ -383,21 +383,21 @@ function BannerTile({
    HEADER ICONS
 ===================================================== */
 
-function SearchIcon() {
-    return (
-        <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            className="h-5 w-5"
-            aria-hidden="true"
-        >
-            <circle cx="10.8" cy="10.8" r="6.8" />
-            <path d="m16 16 4.5 4.5" />
-        </svg>
-    );
-}
+// function SearchIcon() {
+//     return (
+//         <svg
+//             viewBox="0 0 24 24"
+//             fill="none"
+//             stroke="currentColor"
+//             strokeWidth="1.6"
+//             className="h-5 w-5"
+//             aria-hidden="true"
+//         >
+//             <circle cx="10.8" cy="10.8" r="6.8" />
+//             <path d="m16 16 4.5 4.5" />
+//         </svg>
+//     );
+// }
 import { useNavigate } from "react-router-dom";
 
 
@@ -628,40 +628,67 @@ export default function HomePage() {
                         </a>
                     </nav>
 
-                    <div className="flex shrink-0 items-center gap-3 sm:gap-5">
-                        <Link to="/login" aria-label="Search products" className="hidden transition hover:text-green-700 sm:flex">
-                            <SearchIcon />
-                        </Link>
+                    
+<div className="flex shrink-0 items-center gap-3 sm:gap-5">
+  {/* Profile icon */}
+  <div className="transition hover:text-green-700">
+    <UserIcon />
+  </div>
 
+  {/* Purchase History icon */}
+  <Link
+    to={
+      localStorage.getItem("shop_token") &&
+      localStorage.getItem("shop_user")
+        ? "/purchase-history"
+        : "/login"
+    }
+    aria-label="Purchase history"
+    title="Purchase history"
+    className="transition hover:text-green-700"
+  >
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-5 w-5"
+      aria-hidden="true"
+    >
+      <path d="M3 12a9 9 0 1 0 2.6-6.4L3 8" />
+      <path d="M3 3v5h5" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  </Link>
 
-                        <div className="transition hover:text-green-700">
-                            <UserIcon />
-                        </div>
+  {/* Shopping Cart icon */}
+  <Link
+    to={
+      localStorage.getItem("shop_token") &&
+      localStorage.getItem("shop_user")
+        ? "/cart"
+        : "/login"
+    }
+    aria-label="Shopping bag"
+    title="Shopping bag"
+    className="transition hover:text-green-700"
+  >
+    <BagIcon />
+  </Link>
 
-
-                        <Link
-                            to={
-                                localStorage.getItem("shop_token") &&
-                                localStorage.getItem("shop_user")
-                                    ? "/cart"
-                                    : "/login"
-                            }
-                            aria-label="Shopping bag"
-                            className="transition hover:text-green-700"
-                        >
-                            <BagIcon />
-                        </Link>
-
-                        <button
-                            type="button"
-                            aria-label={menuOpen ? "Close menu" : "Open menu"}
-                            aria-expanded={menuOpen}
-                            onClick={() => setMenuOpen((open) => !open)}
-                            className="flex h-10 w-10 items-center justify-center text-2xl lg:hidden"
-                        >
-                            {menuOpen ? "×" : "☰"}
-                        </button>
-                    </div>
+  {/* Mobile menu button */}
+  <button
+    type="button"
+    aria-label={menuOpen ? "Close menu" : "Open menu"}
+    aria-expanded={menuOpen}
+    onClick={() => setMenuOpen((open) => !open)}
+    className="flex h-10 w-10 items-center justify-center text-2xl lg:hidden"
+  >
+    {menuOpen ? "×" : "☰"}
+  </button>
+</div>
                 </div>
 
                 {menuOpen && (

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 type Product = {
@@ -28,13 +29,10 @@ const API_ORIGIN = API_URL.replace(/\/api\/?$/, '')
 function getProductImage(imageUrl?: string | null): string {
   if (!imageUrl) return ''
 
-  // Keep absolute image URLs unchanged.
   if (/^https?:\/\//i.test(imageUrl)) {
     return imageUrl
   }
 
-  // Convert /assets/bags/2/1.jpeg to
-  // http://localhost:5000/assets/bags/2/1.jpeg
   return `${API_ORIGIN}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`
 }
 
@@ -42,13 +40,27 @@ export default function ProductDetailsPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
+  const successPanelRef = useRef<HTMLDivElement>(null)
+
   const [product, setProduct] = useState<Product | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [quantity, setQuantity] = useState(1)
   const [addingToCart, setAddingToCart] = useState(false)
   const [cartMessage, setCartMessage] = useState('')
+  const [cartAdded, setCartAdded] = useState(false)
 
+  // Automatically bring the success panel into view.
+  useEffect(() => {
+    if (cartAdded) {
+      successPanelRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      })
+    }
+  }, [cartAdded])
+
+  // Load product details.
   useEffect(() => {
     let cancelled = false
 
@@ -63,6 +75,9 @@ export default function ProductDetailsPage() {
         setLoading(true)
         setError('')
         setProduct(null)
+        setCartMessage('')
+        setCartAdded(false)
+        setQuantity(1)
 
         const response = await fetch(
           `${API_URL}/products/${encodeURIComponent(id)}`
@@ -77,8 +92,6 @@ export default function ProductDetailsPage() {
         }
 
         const data = await response.json()
-
-        // Supports either { product: {...} } or a direct product object.
         const fetchedProduct = data.product ?? data
 
         if (!fetchedProduct || !fetchedProduct.id) {
@@ -103,21 +116,22 @@ export default function ProductDetailsPage() {
       }
     }
 
-    fetchProduct()
+    void fetchProduct()
 
     return () => {
       cancelled = true
     }
   }, [id])
 
+  // Add the selected product quantity to the cart.
   async function addToCart() {
-    if (!product) return
+    if (!product || addingToCart) return
 
     const token = localStorage.getItem('shop_token')
     const userValue = localStorage.getItem('shop_user')
 
     if (!token || !userValue) {
-      navigate('/customer-login')
+      navigate('/login')
       return
     }
 
@@ -126,11 +140,13 @@ export default function ProductDetailsPage() {
     try {
       user = JSON.parse(userValue)
     } catch {
+      setCartAdded(false)
       setCartMessage('Please sign in again to add items to your cart.')
       return
     }
 
     if (user.role && user.role !== 'customer') {
+      setCartAdded(false)
       setCartMessage('Please sign in with a customer account.')
       return
     }
@@ -138,6 +154,7 @@ export default function ProductDetailsPage() {
     try {
       setAddingToCart(true)
       setCartMessage('')
+      setCartAdded(false)
 
       const response = await fetch(`${API_URL}/cart/items`, {
         method: 'POST',
@@ -157,8 +174,11 @@ export default function ProductDetailsPage() {
         throw new Error(data.message || 'Failed to add product to cart.')
       }
 
-      setCartMessage('Product added to your cart!')
+      // Display the success panel only after the API succeeds.
+      setCartMessage('')
+      setCartAdded(true)
     } catch (err) {
+      setCartAdded(false)
       setCartMessage(
         err instanceof Error
           ? err.message
@@ -191,7 +211,7 @@ export default function ProductDetailsPage() {
 
           <Link
             to="/"
-            className="mt-6 inline-flex items-center justify-center bg-stone-900 px-6 py-3 text-sm font-medium text-white transition hover:bg-stone-700"
+            className="mt-6 inline-flex items-center justify-center bg-green-500 px-6 py-3 text-sm font-bold text-stone-950 transition hover:bg-green-400"
           >
             Back to shopping
           </Link>
@@ -205,11 +225,11 @@ export default function ProductDetailsPage() {
   const outOfStock = stock <= 0
 
   return (
-    <main className="min-h-screen bg-white">
+    <main className="min-h-screen bg-white text-stone-900">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Breadcrumb */}
+        {/* Breadcrumb navigation */}
         <nav className="mb-8 text-sm text-stone-500">
-          <Link to="/" className="transition hover:text-stone-900">
+          <Link to="/" className="transition hover:text-green-700">
             Home
           </Link>
 
@@ -218,7 +238,7 @@ export default function ProductDetailsPage() {
           {product.category_slug ? (
             <Link
               to={`/category/${product.category_slug}`}
-              className="transition hover:text-stone-900"
+              className="transition hover:text-green-700"
             >
               {product.category_display_name ||
                 product.category_name ||
@@ -233,19 +253,18 @@ export default function ProductDetailsPage() {
           )}
 
           <span className="mx-2">/</span>
-
           <span className="text-stone-900">{product.name}</span>
         </nav>
 
         <div className="grid grid-cols-1 gap-10 md:grid-cols-2 md:gap-14">
           {/* Product image */}
-          <div className="overflow-hidden bg-stone-100">
+          <div className="overflow-hidden bg-stone-50">
             {product.image_url ? (
               <img
                 src={getProductImage(product.image_url)}
                 alt={product.name}
-                className="aspect-[4/5] w-full object-contain p-4"
-                onError={event => {
+                className="aspect-[4/5] w-full object-contain p-4 sm:p-8"
+                onError={(event) => {
                   console.error(
                     'Product image failed to load:',
                     event.currentTarget.src
@@ -263,16 +282,16 @@ export default function ProductDetailsPage() {
           {/* Product information */}
           <section className="flex flex-col py-2">
             {product.brand && (
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-green-700">
                 {product.brand}
               </p>
             )}
 
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-stone-900 sm:text-4xl">
+            <h1 className="mt-3 text-3xl font-bold tracking-tight text-stone-950 sm:text-4xl">
               {product.name}
             </h1>
 
-            <p className="mt-5 text-2xl font-medium text-stone-900">
+            <p className="mt-5 text-2xl font-semibold text-stone-950">
               {Number.isFinite(price)
                 ? new Intl.NumberFormat('de-DE', {
                     style: 'currency',
@@ -283,7 +302,7 @@ export default function ProductDetailsPage() {
 
             {product.description && (
               <div className="mt-6 border-t border-stone-200 pt-6">
-                <h2 className="text-sm font-semibold text-stone-900">
+                <h2 className="text-sm font-bold text-stone-950">
                   Description
                 </h2>
 
@@ -295,7 +314,7 @@ export default function ProductDetailsPage() {
 
             {/* Product specifications */}
             <div className="mt-6 border-t border-stone-200 pt-6">
-              <h2 className="text-sm font-semibold text-stone-900">
+              <h2 className="text-sm font-bold text-stone-950">
                 Product details
               </h2>
 
@@ -350,15 +369,13 @@ export default function ProductDetailsPage() {
             {/* Stock status */}
             <div className="mt-6">
               {outOfStock ? (
-                <p className="text-sm font-medium text-red-600">
+                <p className="text-sm font-semibold text-red-600">
                   Out of stock
                 </p>
               ) : (
-                <p className="text-sm text-green-700">
+                <p className="text-sm font-medium text-green-700">
                   In stock
-                  {stock > 0 && stock <= 5
-                    ? ` — only ${stock} left`
-                    : ''}
+                  {stock <= 5 ? ` — only ${stock} left` : ''}
                 </p>
               )}
             </div>
@@ -367,7 +384,7 @@ export default function ProductDetailsPage() {
             <div className="mt-6">
               <label
                 htmlFor="quantity"
-                className="mb-2 block text-sm font-medium text-stone-900"
+                className="mb-2 block text-sm font-semibold text-stone-900"
               >
                 Quantity
               </label>
@@ -376,7 +393,7 @@ export default function ProductDetailsPage() {
                 <button
                   type="button"
                   onClick={() =>
-                    setQuantity(current => Math.max(1, current - 1))
+                    setQuantity((current) => Math.max(1, current - 1))
                   }
                   disabled={quantity <= 1}
                   className="px-4 py-2 text-stone-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-40"
@@ -391,24 +408,22 @@ export default function ProductDetailsPage() {
                   min={1}
                   max={stock > 0 ? stock : undefined}
                   value={quantity}
-                  onChange={event => {
+                  onChange={(event) => {
                     const value = Number(event.target.value)
 
-                    if (Number.isFinite(value) && value >= 1) {
+                    if (Number.isInteger(value) && value >= 1) {
                       setQuantity(
-                        stock > 0
-                          ? Math.min(Math.floor(value), stock)
-                          : Math.floor(value)
+                        stock > 0 ? Math.min(value, stock) : value
                       )
                     }
                   }}
-                  className="w-14 border-x border-stone-300 py-2 text-center text-sm outline-none"
+                  className="w-16 border-x border-stone-300 py-2 text-center text-sm outline-none focus:border-green-600"
                 />
 
                 <button
                   type="button"
                   onClick={() =>
-                    setQuantity(current =>
+                    setQuantity((current) =>
                       stock > 0
                         ? Math.min(current + 1, stock)
                         : current + 1
@@ -423,7 +438,7 @@ export default function ProductDetailsPage() {
               </div>
             </div>
 
-            {/* Add to cart */}
+            {/* Add to cart button */}
             <button
               type="button"
               onClick={addToCart}
@@ -433,7 +448,7 @@ export default function ProductDetailsPage() {
                 !Number.isFinite(price) ||
                 price < 0
               }
-              className="mt-6 w-full bg-stone-900 px-6 py-4 text-sm font-semibold text-white transition hover:bg-stone-700 disabled:cursor-not-allowed disabled:bg-stone-400"
+              className="mt-6 w-full bg-green-500 px-6 py-4 text-sm font-bold text-stone-950 transition hover:bg-green-400 disabled:cursor-not-allowed disabled:bg-stone-300"
             >
               {addingToCart
                 ? 'Adding to cart...'
@@ -442,14 +457,57 @@ export default function ProductDetailsPage() {
                   : 'Add to cart'}
             </button>
 
-            {cartMessage && (
-              <p
+            {/* Success panel */}
+            {cartAdded && (
+              <div
+                ref={successPanelRef}
                 role="status"
-                className={`mt-4 text-sm ${
-    cartMessage.toLowerCase().includes('added')
-        ? 'text-green-700'
-        : 'text-red-600'
-}`}
+                aria-live="polite"
+                className="mt-5 border border-green-200 bg-green-50 p-5"
+              >
+                <div className="flex items-start gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center bg-green-500 text-lg font-bold text-stone-950">
+                    ✓
+                  </span>
+
+                  <div>
+                    <h2 className="font-bold text-stone-950">
+                      Added to your cart!
+                    </h2>
+
+                    <p className="mt-1 text-sm leading-6 text-stone-600">
+                      {quantity}{' '}
+                      {quantity === 1 ? 'item has' : 'items have'} been added
+                      successfully. What would you like to do next?
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/cart')}
+                    className="w-full bg-green-500 px-4 py-3.5 text-sm font-bold text-stone-950 transition hover:bg-green-400"
+                  >
+                    Go to cart →
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate('/')}
+                    className="w-full border border-stone-300 bg-white px-4 py-3.5 text-sm font-bold text-stone-800 transition hover:border-stone-950 hover:bg-stone-950 hover:text-white"
+                  >
+                    Back to shopping
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Error message */}
+            {!cartAdded && cartMessage && (
+              <p
+                role="alert"
+                className="mt-4 border border-red-200 bg-red-50 p-3 text-sm text-red-700"
               >
                 {cartMessage}
               </p>

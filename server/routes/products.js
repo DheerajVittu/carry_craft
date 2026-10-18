@@ -1,3 +1,4 @@
+
 const express = require('express')
 const router = express.Router()
 const pool = require('../db')
@@ -15,29 +16,30 @@ router.get('/test', (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const result = await pool.query(`
-SELECT
-p.id,
-    p.name,
-    p.slug,
-    p.description,
-    p.brand,
-    p.sku,
-    p.price,
-    p.stock_quantity,
-    p.color,
-    p.material,
-    p.capacity_liters,
-    p.weight_kg,
-    p.image_url,
-    p.category_name,
-    c.name AS category_display_name,
-    LOWER(REPLACE(TRIM(c.name), ' ', '-')) AS category_slug
-FROM products p
-JOIN categories c ON c.id = p.category_name
-WHERE p.is_active = TRUE
-AND p.stock_quantity > 0
-ORDER BY p.id DESC
-LIMIT 100
+      SELECT
+        p.id,
+        p.name,
+        p.slug,
+        p.description,
+        p.brand,
+        p.sku,
+        p.price,
+        p.stock_quantity,
+        p.color,
+        p.material,
+        p.capacity_liters,
+        p.weight_kg,
+        p.image_url,
+        p.category_id,
+        c.name AS category_name,
+        c.slug AS category_slug
+      FROM products p
+      LEFT JOIN categories c
+        ON c.id = p.category_id
+      WHERE p.is_active = TRUE
+        AND p.stock_quantity > 0
+      ORDER BY p.id DESC
+      LIMIT 100
     `)
 
     res.json(result.rows)
@@ -64,15 +66,16 @@ router.get('/:id', async (req, res) => {
 
     const result = await pool.query(
       `
-SELECT
-p.*,
-    c.name AS category_display_name,
-    LOWER(REPLACE(TRIM(c.name), ' ', '-')) AS category_slug
-FROM products p
-JOIN categories c ON c.id = p.category_name
-WHERE p.id = $1
-AND p.is_active = TRUE
-    `,
+        SELECT
+          p.*,
+          c.name AS category_name,
+          c.slug AS category_slug
+        FROM products p
+        LEFT JOIN categories c
+          ON c.id = p.category_id
+        WHERE p.id = $1
+          AND p.is_active = TRUE
+      `,
       [Number(id)]
     )
 

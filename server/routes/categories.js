@@ -31,7 +31,7 @@ router.get('/:slug/products', async (req, res) => {
     const result = await pool.query(
         `SELECT p.*
        FROM products p
-       JOIN categories c ON c.id = p.category_name
+       JOIN categories c ON c.id = p.category_id
        WHERE LOWER(REPLACE(TRIM(c.name), ' ', '-')) = LOWER($1)
          AND p.is_active = TRUE
        ORDER BY p.id DESC`,

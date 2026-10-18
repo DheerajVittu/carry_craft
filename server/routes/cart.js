@@ -45,22 +45,22 @@ async function getOrCreateCart(client, customerId) {
 // Return cart items with current product information.
 async function readCart(client, cartId) {
     const result = await client.query(
-        `SELECT
-             ci.product_id,
-             ci.quantity,
-             p.name,
-             p.brand,
-             p.price,
-             p.image_url,
-             p.stock_quantity,
-             p.is_active,
-             (ci.quantity * p.price) AS line_total
-         FROM cart_items ci
-                  JOIN products p ON p.id = ci.product_id
-         WHERE ci.cart_id = $1
-         ORDER BY ci.id`,
-        [cartId]
-    )
+    `SELECT
+         ci.product_id,
+         ci.quantity,
+         ci.unit_price AS price,
+         p.name,
+         p.brand,
+         p.image_url,
+         p.stock_quantity,
+         p.is_active,
+         (ci.quantity * ci.unit_price) AS line_total
+     FROM cart_items ci
+     JOIN products p ON p.id = ci.product_id
+     WHERE ci.cart_id = $1
+     ORDER BY ci.id`,
+    [cartId]
+)
 
     const items = result.rows.map(item => ({
         ...item,
@@ -170,18 +170,25 @@ router.post('/items', requireCustomer, async (req, res) => {
         }
 
         if (existingResult.rows.length > 0) {
+    await client.query(
+        `UPDATE cart_items
+         SET quantity = $1,
+             unit_price = $4,
+             updated_at = NOW()
+         WHERE cart_id = $2 AND product_id = $3`,
+        [newQuantity, cartId, productId, product.price]
+    )
+} else {
             await client.query(
-                `UPDATE cart_items
-                 SET quantity = $1
-                 WHERE cart_id = $2 AND product_id = $3`,
-                [newQuantity, cartId, productId]
-            )
-        } else {
-            await client.query(
-                `INSERT INTO cart_items (cart_id, product_id, quantity)
-                 VALUES ($1, $2, $3)`,
-                [cartId, productId, quantity]
-            )
+    `INSERT INTO cart_items (
+        cart_id,
+        product_id,
+        quantity,
+        unit_price
+    )
+    VALUES ($1, $2, $3, $4)`,
+    [cartId, productId, quantity, product.price]
+)
         }
 
         const cart = await readCart(client, cartId)
