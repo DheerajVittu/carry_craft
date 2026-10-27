@@ -564,6 +564,14 @@ export default function AdminDashboard() {
                                     </button>
 
                                     <button
+    type="button"
+    onClick={() => navigate('/admin/erp-import')}
+    className="rounded-xl bg-blue-700 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-800"
+>
+    Import From Excel
+</button>
+
+                                    <button
                                         type="button"
                                         onClick={() => setTab('customers')}
                                         className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold hover:bg-slate-50"

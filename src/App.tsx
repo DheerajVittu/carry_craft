@@ -12,6 +12,7 @@ import AdminDashboard from './pages/AdminDashboard.tsx'
 import CustomerProfile from './pages/CustomerProfile'
 import CheckoutPage from './pages/CheckoutPage.tsx'
 import PurchaseHistoryPage from './pages/PurchaseHistoryPage.tsx'
+import ERPImportPage from './pages/ERPImportPage.tsx'
 
 export default function App() {
   return (
@@ -36,6 +37,8 @@ export default function App() {
 
       <Route path="/checkout" element={<CheckoutPage />} />
       <Route path="/purchase-history" element={<PurchaseHistoryPage/>}/>
+
+      <Route path="/admin/erp-import" element={<ERPImportPage />} />
       {/* Unknown routes */}
       <Route
         path="*"

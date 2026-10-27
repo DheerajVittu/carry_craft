@@ -2,15 +2,14 @@
 const express = require('express')
 const multer = require('multer')
 const XLSX = require('xlsx')
+const path = require('path')
 const pool = require('../db')
 const requireAdmin = require('../middleware/requireAdmin')
 
 const router = express.Router()
 
-// Protect the entire ERP import route.
 router.use(requireAdmin)
 
-// Accept one Excel file in memory, up to 5 MB.
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -18,9 +17,7 @@ const upload = multer({
     files: 1,
   },
   fileFilter: (req, file, cb) => {
-    const extension = require('path')
-      .extname(file.originalname)
-      .toLowerCase()
+    const extension = path.extname(file.originalname).toLowerCase()
 
     if (!['.xlsx', '.xls'].includes(extension)) {
       return cb(new Error('Please upload an Excel file (.xlsx or .xls).'))
@@ -35,8 +32,13 @@ function cleanText(value) {
   return String(value).trim()
 }
 
+function nullableText(value) {
+  const text = cleanText(value)
+  return text === '' ? null : text
+}
+
 function makeSlug(value) {
-  return value
+  return cleanText(value)
     .toLowerCase()
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -44,8 +46,48 @@ function makeSlug(value) {
     .replace(/^-+|-+$/g, '')
 }
 
+function normalizeHeader(value) {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function parseBoolean(value) {
+  if (typeof value === 'boolean') return value
+
+  const normalized = cleanText(value).toLowerCase()
+
+  if (['true', 'yes', '1', 'active'].includes(normalized)) return true
+  if (['false', 'no', '0', 'inactive'].includes(normalized)) return false
+
+  return null
+}
+
+function parseOptionalNumber(value) {
+  if (value === undefined || value === null || cleanText(value) === '') {
+    return null
+  }
+
+  const number = Number(value)
+  return Number.isFinite(number) ? number : NaN
+}
+
+function getValue(row, ...aliases) {
+  for (const alias of aliases) {
+    const key = normalizeHeader(alias)
+
+    if (Object.prototype.hasOwnProperty.call(row, key)) {
+      return row[key]
+    }
+  }
+
+  return undefined
+}
+
 // POST /api/admin/erp-import
-// Upload an Excel export from the Mini ERP.
+// Import an Excel export from the Mini-ERP.
 router.post('/', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({
@@ -56,10 +98,7 @@ router.post('/', upload.single('file'), async (req, res) => {
   let client
 
   try {
-    const workbook = XLSX.read(req.file.buffer, {
-      type: 'buffer',
-    })
-
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' })
     const firstSheetName = workbook.SheetNames[0]
 
     if (!firstSheetName) {
@@ -69,10 +108,7 @@ router.post('/', upload.single('file'), async (req, res) => {
     }
 
     const worksheet = workbook.Sheets[firstSheetName]
-
-    const rawRows = XLSX.utils.sheet_to_json(worksheet, {
-      defval: null,
-    })
+    const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: null })
 
     if (rawRows.length === 0) {
       return res.status(400).json({
@@ -80,23 +116,8 @@ router.post('/', upload.single('file'), async (req, res) => {
       })
     }
 
-    // Normalize column names so extra spaces and capitalization
-    // do not prevent the importer from recognizing them.
-    const rows = rawRows.map((row) => {
-      const normalized = {}
-
-      for (const [key, value] of Object.entries(row)) {
-        normalized[String(key).trim().toLowerCase()] = value
-      }
-
-      return {
-        erpId: cleanText(normalized['product id']),
-        name: cleanText(normalized['product name']),
-        description: cleanText(normalized['description']),
-        price: normalized['price'],
-        stock: normalized['stock'],
-      }
-    })
+    const actualColumns = Object.keys(rawRows[0]).map(normalizeHeader)
+    const columnSet = new Set(actualColumns)
 
     const requiredColumns = [
       'product id',
@@ -105,12 +126,8 @@ router.post('/', upload.single('file'), async (req, res) => {
       'stock',
     ]
 
-    const actualColumns = Object.keys(rawRows[0]).map((key) =>
-      String(key).trim().toLowerCase()
-    )
-
     const missingColumns = requiredColumns.filter(
-      (column) => !actualColumns.includes(column)
+      (column) => !columnSet.has(column)
     )
 
     if (missingColumns.length > 0) {
@@ -120,7 +137,42 @@ router.post('/', upload.single('file'), async (req, res) => {
       })
     }
 
-    // Validate every row before changing the database.
+    // Normalize ERP export headings while retaining which optional
+    // columns are present in this particular file.
+    const rows = rawRows.map((raw) => {
+      const row = {}
+
+      for (const [key, value] of Object.entries(raw)) {
+        row[normalizeHeader(key)] = value
+      }
+
+      const get = (...aliases) => getValue(row, ...aliases)
+
+      return {
+        erpId: cleanText(get('Product ID')),
+        name: cleanText(get('Product Name')),
+        description: nullableText(get('Description')),
+        brand: nullableText(get('Brand')),
+        sku: nullableText(get('SKU')),
+        slug: nullableText(get('Slug')),
+        price: get('Price'),
+        currency: nullableText(get('Currency')),
+        stock: get('Stock'),
+        category: nullableText(get('Category')),
+        color: nullableText(get('Color')),
+        material: nullableText(get('Material')),
+        capacityLiters: parseOptionalNumber(
+          get('Capacity (Liters)', 'Capacity Liters', 'Capacity')
+        ),
+        weightKg: parseOptionalNumber(
+          get('Weight (kg)', 'Weight Kg', 'Weight')
+        ),
+        imageUrl: nullableText(get('Image URL', 'Image Url')),
+        isActive: parseBoolean(get('Active', 'Is Active')),
+      }
+    })
+
+    // Validate all rows before starting database changes.
     const seenIds = new Set()
 
     for (let i = 0; i < rows.length; i++) {
@@ -143,7 +195,7 @@ router.post('/', upload.single('file'), async (req, res) => {
 
       if (
         row.price === null ||
-        row.price === '' ||
+        cleanText(row.price) === '' ||
         !Number.isFinite(Number(row.price)) ||
         Number(row.price) < 0
       ) {
@@ -154,7 +206,7 @@ router.post('/', upload.single('file'), async (req, res) => {
 
       if (
         row.stock === null ||
-        row.stock === '' ||
+        cleanText(row.stock) === '' ||
         !Number.isInteger(Number(row.stock)) ||
         Number(row.stock) < 0
       ) {
@@ -162,76 +214,194 @@ router.post('/', upload.single('file'), async (req, res) => {
           message: `Row ${rowNumber}: Stock must be a non-negative integer.`,
         })
       }
+
+      if (
+        Number.isNaN(row.capacityLiters) ||
+        (row.capacityLiters !== null && row.capacityLiters < 0)
+      ) {
+        return res.status(400).json({
+          message: `Row ${rowNumber}: Capacity must be a non-negative number.`,
+        })
+      }
+
+      if (
+        Number.isNaN(row.weightKg) ||
+        (row.weightKg !== null && row.weightKg < 0)
+      ) {
+        return res.status(400).json({
+          message: `Row ${rowNumber}: Weight must be a non-negative number.`,
+        })
+      }
+
+      if (
+        columnSet.has('active') &&
+        row.isActive === null
+      ) {
+        return res.status(400).json({
+          message: `Row ${rowNumber}: Active must be true/false, yes/no, or 1/0.`,
+        })
+      }
     }
 
     client = await pool.connect()
-
     await client.query('BEGIN')
+
+    // Map existing category names to their IDs. Unknown categories
+    // remain NULL rather than being assigned to an unrelated category.
+    const categoryResult = await client.query(
+      'SELECT id, name FROM categories'
+    )
+
+    const categoryMap = new Map(
+      categoryResult.rows.map((category) => [
+        cleanText(category.name).toLowerCase(),
+        category.id,
+      ])
+    )
 
     let inserted = 0
     let updated = 0
 
     for (const row of rows) {
-      const erpId = row.erpId
-      const name = row.name
-      const description = row.description || null
       const price = Number(row.price)
       const stock = Number(row.stock)
 
-      const existing = await client.query(
+      const categoryId = row.category
+        ? categoryMap.get(row.category.toLowerCase()) ?? null
+        : null
+
+      const existingResult = await client.query(
         `SELECT id, slug
          FROM products
          WHERE erp_product_id = $1
          FOR UPDATE`,
-        [erpId]
+        [row.erpId]
       )
 
-      if (existing.rows.length > 0) {
-        // Update only ERP-managed fields.
+      if (existingResult.rows.length > 0) {
+        const existing = existingResult.rows[0]
+
+        // Only update optional fields whose columns are included
+        // in this export. A blank cell clears that field to NULL.
+        const updates = [
+          ['name', row.name, true],
+          ['description', row.description, columnSet.has('description')],
+          ['brand', row.brand, columnSet.has('brand')],
+          ['sku', row.sku, columnSet.has('sku')],
+          ['price', price, true],
+          ['stock_quantity', stock, true],
+          ['category_id', categoryId, columnSet.has('category')],
+          ['color', row.color, columnSet.has('color')],
+          ['material', row.material, columnSet.has('material')],
+          ['capacity_liters', row.capacityLiters, columnSet.has('capacity liters') || columnSet.has('capacity')],
+          ['weight_kg', row.weightKg, columnSet.has('weight kg') || columnSet.has('weight')],
+          ['image_url', row.imageUrl, columnSet.has('image url')],
+          ['is_active', row.isActive, columnSet.has('active') || columnSet.has('is active')],
+        ]
+
+        let newSlug = existing.slug
+
+        if (columnSet.has('slug') && row.slug) {
+          newSlug = row.slug
+        }
+
+        if (columnSet.has('slug')) {
+          const slugCheck = await client.query(
+            'SELECT id FROM products WHERE slug = $1 AND id <> $2',
+            [newSlug, existing.id]
+          )
+
+          if (slugCheck.rows.length > 0) {
+            throw new Error(
+              `Slug "${newSlug}" is already used by another product.`
+            )
+          }
+
+          updates.push(['slug', newSlug, true])
+        }
+
+        const activeUpdates = updates.filter(([, , shouldUpdate]) => shouldUpdate)
+        const assignments = []
+        const values = []
+
+        for (const [column, value] of activeUpdates) {
+          values.push(value)
+          assignments.push(`${column} = $${values.length}`)
+        }
+
+        assignments.push('updated_at = NOW()')
+        values.push(row.erpId)
+
         await client.query(
           `UPDATE products
-           SET name = $1,
-               description = $2,
-               price = $3,
-               stock_quantity = $4,
-               updated_at = NOW()
-           WHERE erp_product_id = $5`,
-          [name, description, price, stock, erpId]
+           SET ${assignments.join(', ')}
+           WHERE erp_product_id = $${values.length}`,
+          values
         )
 
         updated++
         continue
       }
 
-      // Keep the ERP ID separate from CarryCraft's internal ID and SKU.
-      const baseSlug = `erp-${makeSlug(erpId) || 'product'}`
+      const baseSlug = row.slug || `erp-${makeSlug(row.erpId) || 'product'}`
       let slug = baseSlug
 
-      // Avoid collisions with existing CarryCraft product slugs.
       const slugCheck = await client.query(
         'SELECT 1 FROM products WHERE slug = $1',
         [slug]
       )
 
       if (slugCheck.rows.length > 0) {
-        slug = `${baseSlug}-${Date.now()}-${inserted}`
+        slug = `erp-${makeSlug(row.erpId) || 'product'}`
+      }
+
+      const finalSlugCheck = await client.query(
+        'SELECT 1 FROM products WHERE slug = $1',
+        [slug]
+      )
+
+      if (finalSlugCheck.rows.length > 0) {
+        slug = `${slug}-${Date.now()}-${inserted}`
       }
 
       await client.query(
         `INSERT INTO products (
-           erp_product_id,
-           category_id,
-           name,
-           slug,
-           description,
-           sku,
-           price,
-           stock_quantity,
-           image_url,
-           is_active
-         )
-         VALUES ($1, NULL, $2, $3, $4, NULL, $5, $6, NULL, TRUE)`,
-        [erpId, name, slug, description, price, stock]
+          erp_product_id,
+          category_id,
+          name,
+          slug,
+          description,
+          brand,
+          sku,
+          price,
+          stock_quantity,
+          color,
+          material,
+          capacity_liters,
+          weight_kg,
+          image_url,
+          is_active
+        )
+        VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+        )`,
+        [
+          row.erpId,
+          categoryId,
+          row.name,
+          slug,
+          row.description,
+          row.brand,
+          row.sku,
+          price,
+          stock,
+          row.color,
+          row.material,
+          row.capacityLiters,
+          row.weightKg,
+          row.imageUrl,
+          row.isActive === null ? true : row.isActive,
+        ]
       )
 
       inserted++
@@ -239,7 +409,7 @@ router.post('/', upload.single('file'), async (req, res) => {
 
     await client.query('COMMIT')
 
-    res.json({
+    return res.json({
       message: 'ERP product import completed successfully.',
       file: req.file.originalname,
       totalRows: rows.length,
@@ -257,7 +427,7 @@ router.post('/', upload.single('file'), async (req, res) => {
 
     console.error('ERP import error:', error.message)
 
-    res.status(400).json({
+    return res.status(400).json({
       message: 'ERP import failed. No partial database changes were committed.',
       error: error.message,
     })
@@ -266,11 +436,10 @@ router.post('/', upload.single('file'), async (req, res) => {
   }
 })
 
-// Return JSON errors for upload failures.
 router.use((error, req, res, next) => {
   if (res.headersSent) return next(error)
 
-  res.status(400).json({
+  return res.status(400).json({
     message: error.message || 'File upload failed.',
   })
 })
