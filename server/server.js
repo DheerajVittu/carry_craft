@@ -13,6 +13,7 @@ const cartRoutes = require('./routes/cart')
 const adminRoutes = require('./routes/admin')
 const profileRoutes = require('./routes/profile')
 const orderRoutes = require('./routes/orders')
+const erpImportRoutes = require('./routes/erpImport')
 
 const app = express()
 
@@ -48,6 +49,9 @@ app.use(
 
 // Authentication API
 app.use('/api/auth', authRoutes)
+
+// ERP product import API
+app.use('/api/admin/erp-import', erpImportRoutes)
 
 // Admin API
 app.use('/api/admin', adminRoutes)
